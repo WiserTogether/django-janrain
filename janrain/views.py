@@ -26,6 +26,7 @@ def login(request):
 
     u = None
     p = profile['profile']
+
     u = auth.authenticate(profile=p)
     post_authenticate.send(JanrainSignal, user=u, profile_data=profile)
 
