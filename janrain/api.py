@@ -12,6 +12,7 @@ class JanrainAuthenticationError(Exception):
 api_params = {
     'apiKey': settings.JANRAIN_RPX_API_KEY,
     'format': 'json',
+    'extended': 'true',
 }
 
 try:
@@ -90,7 +91,7 @@ def _api_call(function, **kwargs):
         logger.error("Error: data returned from Janrain API call is not JSON (%s)", js)
 
     if data['stat'] != 'ok':
-        logger.error("error in Janrain API call %s (%s): %s", 
+        logger.error("error in Janrain API call %s (%s): %s",
                 function, data['err']['code'], data['err']['msg'])
         raise JanrainAuthenticationError()
     if 'profile' not in data.keys():
