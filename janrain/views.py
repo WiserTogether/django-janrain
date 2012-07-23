@@ -39,7 +39,12 @@ def login(request):
     profile = profile_data['profile']
 
     user = auth.authenticate(profile=profile)
-    post_authenticate.send(JanrainSignal, user=user, profile_data=profile_data)
+    post_authenticate.send(
+        JanrainSignal,
+        user=user,
+        profile_data=profile_data,
+        request=request
+    )
 
     if user is not None:
         janrain_user = JanrainUser.objects.get_or_create(
