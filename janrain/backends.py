@@ -1,10 +1,20 @@
+import logging
+
 from base64 import b64encode
 from hashlib import sha1
 
+from django.conf import settings
 from django.contrib.auth.models import User
 
 from janrain.constants import PROVIDER_LINKEDIN
 from janrain.models import JanrainUser
+
+
+try:
+    logger_name = getattr(settings, 'JANRAIN_LOGGER')
+    logger = logging.getLogger(logger_name)
+except AttributeError:
+    logger = logging.getLogger('default')
 
 
 class JanrainBackend(object):
@@ -23,7 +33,19 @@ class JanrainBackend(object):
             try:
                 user = User.objects.get(email=email)
             except User.DoesNotExist:
-                return self.create_user(profile)
+                try:
+                    logger.debug(
+                        'JANRAIN: Could not find existing Django user with just the e-mail address, attempting to get or create a Django user with profile information.'
+                    )
+                    return self.get_or_create_user(profile)
+                except Exception, e:
+                    logger.error(
+                        'JANRAIN: Unable to get or create new Django User: %s' % str(e)
+                    )
+            except User.MultipleObjectsReturned:
+                logger.error(
+                        'JANRAIN: Multiple Django users were found with the e-mail address %s.' % email
+                    )
             else:
                 return user
         elif provider == PROVIDER_LINKEDIN:
@@ -50,16 +72,24 @@ class JanrainBackend(object):
 
                 janrain_user = JanrainUser.objects.get(**janrain_data)
             except JanrainUser.DoesNotExist:
-                return self.create_user(profile)
+                try:
+                    logger.debug(
+                        'JANRAIN: Could not find existing Janrain user with the provided profile information, attempting to get or create a Django user with the profile information.'
+                    )
+                    return self.get_or_create_user(profile)
+                except Exception, e:
+                    logger.error(
+                        'JANRAIN: Unable to get or create new Django user: %s' % str(e)
+                    )
             else:
                 return janrain_user.user
 
         return None
 
-    def create_user(self, profile):
+    def get_or_create_user(self, profile):
         """
-        Creates a new Django User with the profile data returned from the
-        chosen provider.
+        Gets or creates a new Django User with the profile data returned from
+        the chosen provider.
         """
 
         # django.contrib.auth.models.User.username is required and
@@ -72,28 +102,30 @@ class JanrainBackend(object):
 
         first_name, last_name = self.get_name_from_profile(profile)
 
-        user = User(
+        user, created = User.objects.get_or_create(
             username=hashed_username,
-            password='',
             first_name=first_name,
             last_name=last_name,
             email=self.get_email(profile)
         )
 
-        user.set_unusable_password()
-        user.is_staff = False
-        user.is_superuser = False
+        # Check to see if the user was created so that we don't overwrite
+        # anything that may have been set.
+        if created:
+            user.set_unusable_password()
+            user.is_staff = False
+            user.is_superuser = False
 
-        # TODO:  We are hooking into this for now, but will want to
-        #        change this in the future once we have a full
-        #        registration state machine working.  For the time
-        #        being, any new user coming in through a provider we've
-        #        configured in Janrain will have is_active set to
-        #        False, which will trigger the registration form to
-        #        appear so that the user can verify and/or fill in any
-        #        information.
-        user.is_active = False
-        user.save()
+            # TODO:  We are hooking into this for now, but will want to
+            #        change this in the future once we have a full
+            #        registration state machine working.  For the time
+            #        being, any new user coming in through a provider we've
+            #        configured in Janrain will have is_active set to
+            #        False, which will trigger the registration form to
+            #        appear so that the user can verify and/or fill in any
+            #        information.
+            user.is_active = False
+            user.save()
 
         return user
 
@@ -112,6 +144,7 @@ class JanrainBackend(object):
 
             if fname and lname:
                 return (fname, lname)
+
         dn = p.get('displayName')
 
         if len(dn) > 1 and dn.find(' ') != -1:
