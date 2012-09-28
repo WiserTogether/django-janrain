@@ -1,5 +1,5 @@
-from django.http import HttpResponseRedirect
 from django.contrib import auth
+from django.http import HttpResponseRedirect
 from django.views.decorators.csrf import csrf_exempt
 
 from janrain import api
@@ -10,6 +10,7 @@ from janrain.signals import *
 @csrf_exempt
 def login(request):
     pre_login.send(JanrainSignal, request=request)
+
     try:
         token = request.POST['token']
     except KeyError:
@@ -84,8 +85,11 @@ def logout(request):
     auth.logout(request)
 
     try:
-        redirect = pre_redirect.send(JanrainSignal, type='logout',
-                redirect=request.GET.get('next', '/'))[-1][1]
+        redirect = pre_redirect.send(
+            JanrainSignal,
+            type='logout',
+            redirect=request.GET.get('next', '/')
+        )[-1][1]
     except IndexError:
         redirect = '/'
 
