@@ -1,4 +1,4 @@
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from hashlib import sha1
 from base64 import b64encode
 
@@ -10,7 +10,8 @@ class JanrainBackend(object):
         # django.contrib.auth.models.User.username is required and 
         # has a max_length of 30 so to ensure that we don't go over 
         # 30 characters we base64 encode the sha1 of the identifier 
-        # returned from janrain 
+        # returned from janrain
+        User = get_user_model()
         hashed_user = b64encode(sha1(profile['identifier']).digest())
         try :
             u = User.objects.get(username=hashed_user)
@@ -32,6 +33,7 @@ class JanrainBackend(object):
         return u
 
     def get_user(self, uid):
+        User = get_user_model()
         try:
             return User.objects.get(pk=uid)
         except User.DoesNotExist:
